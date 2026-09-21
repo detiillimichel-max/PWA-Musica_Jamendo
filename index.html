@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OIO Música — Jamendo</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f1015;
+      color: #f5f5f7;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      padding: 18px 16px 14px;
+      background: rgba(15,16,21,.96);
+      border-bottom: 1px solid #282a33;
+    }
+    h1 { margin: 0 0 4px; font-size: 22px; }
+    .status { color: #9da1ad; font-size: 13px; margin-bottom: 12px; }
+    input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid #343743;
+      border-radius: 12px;
+      background: #191b22;
+      color: #fff;
+      font-size: 16px;
+      outline: none;
+    }
+    main { padding: 14px 12px 100px; max-width: 760px; margin: auto; }
+    .track {
+      display: grid;
+      grid-template-columns: 58px 1fr auto;
+      gap: 12px;
+      align-items: center;
+      padding: 10px;
+      margin-bottom: 8px;
+      border: 1px solid #252732;
+      border-radius: 14px;
+      background: #15171d;
+    }
+    .cover {
+      width: 58px;
+      height: 58px;
+      object-fit: cover;
+      border-radius: 10px;
+      background: #242630;
+    }
+    .name { font-weight: 650; line-height: 1.2; }
+    .artist { color: #aeb2bd; font-size: 13px; margin-top: 4px; }
+    button {
+      border: 0;
+      border-radius: 50%;
+      width: 44px;
+      height: 44px;
+      background: #fff;
+      color: #111;
+      font-size: 18px;
+      cursor: pointer;
+    }
+    .empty, .error {
+      padding: 24px 10px;
+      text-align: center;
+      color: #aeb2bd;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🎵 Música</h1>
+    <div class="status" id="status">Carregando catálogo local…</div>
+    <input id="search" type="search" placeholder="🔎 Buscar música ou artista" autocomplete="off">
+  </header>
+
+  <main>
+    <section id="tracks"></section>
+  </main>
+
+  <audio id="player" controls preload="none" style="position:fixed;left:10px;right:10px;bottom:10px;width:calc(100% - 20px);z-index:20;"></audio>
+
+  <script>
+    const state = { tracks: [], filtered: [] };
+    const list = document.getElementById('tracks');
+    const status = document.getElementById('status');
+    const search = document.getElementById('search');
+    const player = document.getElementById('player');
+
+    function render() {
+      list.innerHTML = '';
+
+      if (!state.filtered.length) {
+        list.innerHTML = '<div class="empty">Nenhuma música encontrada no catálogo atual.</div>';
+        return;
+      }
+
+      const fragment = document.createDocumentFragment();
+
+      state.filtered.forEach(track => {
+        const item = document.createElement('article');
+        item.className = 'track';
+
+        const cover = document.createElement('img');
+        cover.className = 'cover';
+        cover.src = track.album_image || track.image || '';
+        cover.alt = '';
+        cover.loading = 'lazy';
+
+        const info = document.createElement('div');
+        const name = document.createElement('div');
+        name.className = 'name';
+        name.textContent = track.name || 'Sem título';
+
+        const artist = document.createElement('div');
+        artist.className = 'artist';
+        artist.textContent = track.artist_name || 'Artista desconhecido';
+
+        info.append(name, artist);
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = '▶';
+        button.title = 'Tocar';
+        button.addEventListener('click', () => {
+          if (!track.audio) return;
+          player.src = track.audio;
+          player.play().catch(() => {});
+        });
+
+        item.append(cover, info, button);
+        fragment.appendChild(item);
+      });
+
+      list.appendChild(fragment);
+    }
+
+    function applySearch() {
+      const term = search.value.trim().toLowerCase();
+      state.filtered = !term
+        ? state.tracks
+        : state.tracks.filter(track =>
+            String(track.name || '').toLowerCase().includes(term) ||
+            String(track.artist_name || '').toLowerCase().includes(term)
+          );
+
+      status.textContent = term
+        ? state.filtered.length + ' música(s) encontrada(s) no catálogo local'
+        : state.tracks.length + ' músicas no catálogo local';
+
+      render();
+    }
+
+    search.addEventListener('input', applySearch);
+
+    fetch('./catalog.json', { cache: 'no-cache' })
+      .then(response => {
+        if (!response.ok) throw new Error('Não foi possível carregar catalog.json');
+        return response.json();
+      })
+      .then(catalog => {
+        state.tracks = Array.isArray(catalog.tracks) ? catalog.tracks : [];
+        state.filtered = state.tracks;
+        status.textContent = state.tracks.length + ' músicas no catálogo local';
+        render();
+      })
+      .catch(error => {
+        console.error(error);
+        status.textContent = 'Erro ao carregar catálogo';
+        list.innerHTML = '<div class="error">Não foi possível carregar o catálogo local.</div>';
+      });
+  </script>
+</body>
+</html>
