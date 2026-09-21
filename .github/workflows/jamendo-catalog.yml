@@ -1,0 +1,91 @@
+name: Jamendo - gerar catálogo de teste
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  gerar-catalogo:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar repositório
+        uses: actions/checkout@v4
+
+      - name: Consultar Jamendo uma única vez
+        env:
+          JAMENDO_CLIENT_ID: ${{ secrets.JAMENDO_CLIENT_ID }}
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+
+          const clientId = process.env.JAMENDO_CLIENT_ID;
+          if (!clientId) {
+            throw new Error('Secret JAMENDO_CLIENT_ID não encontrado.');
+          }
+
+          const url = new URL('https://api.jamendo.com/v3.0/tracks/');
+          url.searchParams.set('client_id', clientId);
+          url.searchParams.set('format', 'json');
+          url.searchParams.set('limit', '20');
+          url.searchParams.set('order', 'popularity_total_desc');
+          url.searchParams.set('imagesize', '300');
+          url.searchParams.set('include', 'musicinfo');
+          url.searchParams.set('type', 'single albumtrack');
+
+          (async () => {
+            const response = await fetch(url);
+            if (!response.ok) {
+              throw new Error(`Jamendo HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (!data.headers || data.headers.status !== 'success') {
+              throw new Error(
+                `Jamendo retornou erro: ${data.headers?.error_message || 'erro desconhecido'}`
+              );
+            }
+
+            // Funk fica fora do catálogo.
+            const tracks = (data.results || []).filter(track => {
+              const tags = JSON.stringify(track.musicinfo?.tags || {}).toLowerCase();
+              return !tags.includes('funk');
+            });
+
+            const catalog = {
+              version: 1,
+              generated_at: new Date().toISOString(),
+              source: 'Jamendo API v3.0',
+              request: {
+                endpoint: '/v3.0/tracks',
+                limit_requested: 20,
+                results_received: data.results?.length || 0,
+                results_after_funk_filter: tracks.length
+              },
+              tracks
+            };
+
+            fs.writeFileSync(
+              'catalog.json',
+              JSON.stringify(catalog, null, 2) + '\n',
+              'utf8'
+            );
+
+            console.log(`Catálogo gerado: ${tracks.length} músicas.`);
+          })().catch(error => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+
+      - name: Publicar catálogo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add catalog.json
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: gerar catálogo Jamendo de teste"
+          git push
