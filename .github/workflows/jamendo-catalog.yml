@@ -1,4 +1,4 @@
-name: Jamendo - gerar catálogo de teste
+name: Jamendo - análise de catálogo
 
 on:
   workflow_dispatch:
@@ -29,10 +29,10 @@ jobs:
           const url = new URL('https://api.jamendo.com/v3.0/tracks/');
           url.searchParams.set('client_id', clientId);
           url.searchParams.set('format', 'json');
-          url.searchParams.set('limit', '20');
+          url.searchParams.set('limit', '200');
           url.searchParams.set('order', 'popularity_total_desc');
           url.searchParams.set('imagesize', '300');
-          url.searchParams.set('include', 'musicinfo');
+          url.searchParams.set('include', 'musicinfo stats');
           url.searchParams.set('type', 'single albumtrack');
 
           (async () => {
@@ -55,16 +55,27 @@ jobs:
               return !tags.includes('funk');
             });
 
+            // Levantamento simples de gêneros presentes no lote.
+            const genreCounts = {};
+            for (const track of tracks) {
+              for (const genre of track.musicinfo?.tags?.genres || []) {
+                genreCounts[genre] = (genreCounts[genre] || 0) + 1;
+              }
+            }
+
             const catalog = {
-              version: 1,
+              version: 2,
               generated_at: new Date().toISOString(),
               source: 'Jamendo API v3.0',
+              purpose: 'análise inicial de cobertura do catálogo',
               request: {
                 endpoint: '/v3.0/tracks',
-                limit_requested: 20,
+                limit_requested: 200,
                 results_received: data.results?.length || 0,
-                results_after_funk_filter: tracks.length
+                results_after_funk_filter: tracks.length,
+                includes: ['musicinfo', 'stats']
               },
+              genre_counts: genreCounts,
               tracks
             };
 
@@ -74,7 +85,8 @@ jobs:
               'utf8'
             );
 
-            console.log(`Catálogo gerado: ${tracks.length} músicas.`);
+            console.log(`Catálogo gerado: ${tracks.length} músicas após filtro de Funk.`);
+            console.log('Gêneros encontrados:', genreCounts);
           })().catch(error => {
             console.error(error);
             process.exit(1);
@@ -87,5 +99,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add catalog.json
           git diff --cached --quiet && exit 0
-          git commit -m "chore: gerar catálogo Jamendo de teste"
+          git commit -m "chore: ampliar catálogo para análise de cobertura"
           git push
