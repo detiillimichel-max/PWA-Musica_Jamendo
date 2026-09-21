@@ -49,6 +49,12 @@ jobs:
               );
             }
 
+            // Proteção: uma resposta vazia nunca pode substituir um catálogo válido.
+            const receivedTracks = data.results || [];
+            if (receivedTracks.length === 0) {
+              throw new Error('Jamendo retornou 0 músicas. Catálogo atual será preservado.');
+            }
+
             // Funk fica fora do catálogo.
             const tracks = (data.results || []).filter(track => {
               const tags = JSON.stringify(track.musicinfo?.tags || {}).toLowerCase();
