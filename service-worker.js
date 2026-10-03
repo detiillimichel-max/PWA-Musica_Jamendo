@@ -1,9 +1,10 @@
-const CACHE_NAME = 'oio-musica-v2';
+const CACHE_NAME = 'oio-musica-v3';
 const APP_SHELL = [
   './',
   './index.html',
   './manifest.json',
-  './icon-192.png'
+  './icon-192.png',
+  './icon-512.png'
 ];
 
 self.addEventListener('install', event => {
@@ -32,8 +33,6 @@ self.addEventListener('fetch', event => {
 
   const url = new URL(request.url);
 
-  // O catálogo é atualizado pela rede quando possível.
-  // Se estiver offline, usa a última versão válida armazenada.
   if (url.origin === self.location.origin && url.pathname.endsWith('/catalog.json')) {
     event.respondWith(
       fetch(request)
@@ -49,7 +48,6 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Não interceptar áudio, imagens externas ou APIs externas.
   if (url.origin !== self.location.origin) return;
 
   event.respondWith(
